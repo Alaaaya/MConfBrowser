@@ -1,0 +1,36 @@
+name: Build native unsigned IPA
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build supplied native Swift source without signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcodebuild -project MConfBrowser.xcodeproj -target MConfPoC -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' CONFIGURATION_BUILD_DIR="$PWD/build" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' DEVELOPMENT_TEAM='' build | tee build.log
+          test -x build/MConfBrowser.app/MConfBrowser
+          file build/MConfBrowser.app/MConfBrowser
+          xcrun lipo -info build/MConfBrowser.app/MConfBrowser
+          mkdir -p artifacts/Payload
+          ditto build/MConfBrowser.app artifacts/Payload/MConfBrowser.app
+          cd artifacts
+          zip -qry MConfBrowser-1.0-unsigned.ipa Payload
+          shasum -a 256 MConfBrowser-1.0-unsigned.ipa > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: MConfBrowser-native-build
+          path: |
+            artifacts/*.ipa
+            artifacts/SHA256SUMS
+            build.log
+          if-no-files-found: warn
